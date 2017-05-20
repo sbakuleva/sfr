@@ -14,7 +14,7 @@ st_sf(..., agr = NA_agr_, row.names,
 \method{[}{sf}(x, i, j, ..., drop = FALSE, op = st_intersects)
 }
 \arguments{
-\item{...}{column elements to be binded into an \code{sf} object, one of them being of class \code{sfc}}
+\item{...}{column elements to be binded into an \code{sf} object or a single \code{list} or \code{data.frame} with such columns; at least one of these columns shall be a geometry list-column of class \code{sfc} or be a list-column that can be converted into an \code{sfc} by \link{st_as_sfc}.}
 
 \item{agr}{character vector; see details below.}
 
@@ -26,9 +26,8 @@ st_sf(..., agr = NA_agr_, row.names,
 
 \item{precision}{numeric; see \link{st_as_binary}}
 
-\item{sf_column_name}{character; name of the list-column with simple feature geometries, in case 
-there is more than one; if there is more than one and \code{sf_column_name} is not given, the 
-first one is selected and a warning is given}
+\item{sf_column_name}{character; name of the active list-column with simple feature geometries; in case 
+there are more than one and \code{sf_column_name} is not given, the first one is taken.}
 
 \item{x}{object of class \code{sf}}
 
@@ -36,7 +35,7 @@ first one is selected and a warning is given}
 
 \item{j}{variable selection, see \link{[.data.frame}}
 
-\item{drop}{whether to drop to simpler (e.g. vector) representation, see \link{[.data.frame}}
+\item{drop}{logical, default \code{FALSE}; if \code{TRUE} drop the geometry column and return a \code{data.frame}, else make the geometry sticy and return a \code{sf} object.}
 
 \item{op}{function; geometrical binary predicate function to apply when \code{i} is a simple feature object}
 }
@@ -46,7 +45,7 @@ Create sf, which extends data.frame-like objects with a simple feature list colu
 \details{
 \code{agr}, attribute-geometry-relationship, specifies for each non-geometry attribute column how it relates to the geometry, and can have one of following values: "constant", "aggregate", "identity". "constant" is used for attributes that are constant throughout the geometry (e.g. land use), "aggregate" where the attribute is an aggregate value over the geometry (e.g. population density or population count), "identity" when the attributes uniquely identifies the geometry of particular "thing", such as a building ID or a city name. The default value, \code{NA_agr_}, implies we don't know.
 
-"[.sf" will return a \code{data.frame} if the geometry column (of class \code{sfc}) is dropped, an \code{sfc} object if only the geometry column is selected, otherwise the behavior depending on \code{drop} is identical to that of \link{[.data.frame}.
+"[.sf" will return a \code{data.frame} if the geometry column (of class \code{sfc}) is dropped (\code{drop=TRUE}), an \code{sfc} object if only the geometry column is selected, otherwise returns an \code{sf} object; see also \link{[.data.frame}.
 }
 \examples{
 g = st_sfc(st_point(1:2))

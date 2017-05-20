@@ -18,6 +18,8 @@
 \alias{dplyr}
 \alias{group_by.sf}
 \alias{dplyr}
+\alias{ungroup.sf}
+\alias{dplyr}
 \alias{mutate_.sf}
 \alias{dplyr}
 \alias{mutate.sf}
@@ -38,9 +40,10 @@
 \alias{dplyr}
 \alias{slice.sf}
 \alias{dplyr}
-\alias{summarise_.sf}
-\alias{dplyr}
 \alias{summarise.sf}
+\alias{summarise}
+\alias{dplyr}
+\alias{summarise_.sf}
 \alias{dplyr}
 \alias{gather_.sf}
 \alias{dplyr}
@@ -49,6 +52,8 @@
 \alias{sample_n.sf}
 \alias{dplyr}
 \alias{sample_frac.sf}
+\alias{dplyr}
+\alias{nest_.sf}
 \alias{dplyr}
 \alias{inner_join.sf}
 \alias{dplyr}
@@ -65,19 +70,21 @@
 \usage{
 filter_.sf(.data, ..., .dots)
 
-\method{filter}{sf}(.data, ...)
+filter.sf(.data, ...)
 
 arrange_.sf(.data, ..., .dots)
 
-\method{arrange}{sf}(.data, ...)
+arrange.sf(.data, ...)
 
 distinct_.sf(.data, ..., .dots, .keep_all = FALSE)
 
-\method{distinct}{sf}(.data, ..., .dots, .keep_all = FALSE)
+distinct.sf(.data, ..., .dots, .keep_all = FALSE)
 
 group_by_.sf(.data, ..., .dots, add = FALSE)
 
-\method{group_by}{sf}(.data, ..., .dots, add = FALSE)
+group_by.sf(.data, ..., .dots, add = FALSE)
+
+ungroup.sf(x, ...)
 
 mutate_.sf(.data, ..., .dots)
 
@@ -85,23 +92,23 @@ mutate.sf(.data, ..., .dots)
 
 transmute_.sf(.data, ..., .dots)
 
-\method{transmute}{sf}(.data, ..., .dots)
+transmute.sf(.data, ..., .dots)
 
 select_.sf(.data, ..., .dots = NULL)
 
-\method{select}{sf}(.data, ...)
+select.sf(.data, ...)
 
 rename_.sf(.data, ..., .dots)
 
-\method{rename}{sf}(.data, ...)
+rename.sf(.data, ...)
 
 slice_.sf(.data, ..., .dots)
 
 slice.sf(.data, ...)
 
-summarise_.sf(.data, ..., .dots)
+summarise.sf(.data, ..., .dots, do_union = TRUE)
 
-\method{summarise}{sf}(.data, ..., .dots)
+summarise_.sf(.data, ..., .dots, do_union = TRUE)
 
 gather_.sf(data, key_col, value_col, gather_cols, na.rm = FALSE,
   convert = FALSE, factor_key = FALSE)
@@ -109,11 +116,13 @@ gather_.sf(data, key_col, value_col, gather_cols, na.rm = FALSE,
 spread_.sf(data, key_col, value_col, fill = NA, convert = FALSE,
   drop = TRUE, sep = NULL)
 
-\method{sample_n}{sf}(tbl, size, replace = FALSE, weight = NULL,
+sample_n.sf(tbl, size, replace = FALSE, weight = NULL,
   .env = parent.frame())
 
-\method{sample_frac}{sf}(tbl, size = 1, replace = FALSE, weight = NULL,
+sample_frac.sf(tbl, size = 1, replace = FALSE, weight = NULL,
   .env = parent.frame())
+
+nest_.sf(data, key_col, nest_cols)
 
 inner_join.sf(x, y, by = NULL, copy = FALSE, suffix = c(".x", ".y"), ...)
 
@@ -137,6 +146,10 @@ anti_join.sf(x, y, by = NULL, copy = FALSE, ...)
 \item{.keep_all}{see corresponding function in dplyr}
 
 \item{add}{see corresponding function in dplyr}
+
+\item{x}{see \link[dplyr]{left_join}}
+
+\item{do_union}{logical; should geometries be unioned by using \link{st_union}, or simply be combined using \link{st_combine}? Using \link{st_union} resolves internal boundaries, but in case of unioning points may also change the order of the points.}
 
 \item{data}{see original function docs}
 
@@ -168,7 +181,7 @@ anti_join.sf(x, y, by = NULL, copy = FALSE, ...)
 
 \item{.env}{see original function docs}
 
-\item{x}{see \link[dplyr]{left_join}}
+\item{nest_cols}{see \link[tidyr]{nest}}
 
 \item{y}{see \link[dplyr]{left_join}}
 
@@ -179,7 +192,10 @@ anti_join.sf(x, y, by = NULL, copy = FALSE, ...)
 \item{suffix}{see \link[dplyr]{left_join}}
 }
 \description{
-Dplyr verb methods for sf objects
+Dplyr verb methods for sf objects. Geometries are sticky, use \link{as.data.frame} to let code{dplyr}'s own methods drop them.
+}
+\details{
+\code{select} keeps the geometry regardless whether it is selected or not; to deselect it, first pipe through \code{as.data.frame} to let dplyr's own \code{select} drop it.
 }
 \examples{
 library(dplyr)
@@ -204,8 +220,8 @@ nc \%>\% slice(1:2)
 nc$area_cl = cut(nc$AREA, c(0, .1, .12, .15, .25))
 nc.g <- nc \%>\% group_by(area_cl)
 nc.g \%>\% summarise(mean(AREA))
-nc.g \%>\% summarize(mean(AREA))
-nc.g \%>\% summarize(mean(AREA)) \%>\% plot(col = grey(3:6 / 7))
+nc.g \%>\% summarise(mean(AREA)) \%>\% plot(col = grey(3:6 / 7))
+nc \%>\% as.data.frame \%>\% summarise(mean(AREA))
 library(tidyr)
 nc \%>\% select(SID74, SID79, geometry) \%>\% gather(VAR, SID, -geometry) \%>\% summary()
 library(tidyr)

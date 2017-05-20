@@ -1,3 +1,15 @@
+set_utf8 = function(x) {
+	n = names(x)
+	Encoding(n) = "UTF-8"
+	to_utf8 = function(x) {
+		if (is.character(x))
+			Encoding(x) = "UTF-8"
+		x
+	}
+	structure(lapply(x, to_utf8), names = n)
+}
+
+
 #' Read simple features or layers from file or database
 #'
 #' Read simple features from file or database, or retrieve layer names and their geometry type(s)
@@ -12,7 +24,7 @@
 #' @param geometry_column integer or character; in case of multiple geometry fields, which one to take?
 #' @param type integer; ISO number of desired simple feature type; see details. If left zero, and \code{promote_to_multi}
 #' is \code{TRUE}, in case of mixed feature geometry
-#' types, conversion to the highest numeric type value found will be attempted. Different values for each geometry column
+#' types, conversion to the highest numeric type value found will be attempted. A vector with different values for each geometry column
 #' can be given.
 #' @param promote_to_multi logical; in case of a mix of Point and MultiPoint, or of LineString and MultiLineString, or of
 #' Polygon and MultiPolygon, convert all to the Multi variety; defaults to \code{TRUE}
@@ -68,12 +80,13 @@ st_read = function(dsn, layer, ..., options = NULL, quiet = FALSE, geometry_colu
 	# TODO: take care of multiple geometry colums:
 	which.geom = which(vapply(x, function(f) inherits(f, "sfc"), TRUE))
 	nm = names(x)[which.geom]
+	Encoding(nm) = "UTF-8"
 	geom = x[which.geom]
 
 	x = if (length(x) == length(geom)) # ONLY geometry column(s)
 		data.frame(row.names = seq_along(geom[[1]]))
 	else
-		as.data.frame(x[-which.geom], stringsAsFactors = stringsAsFactors)
+		as.data.frame(set_utf8(x[-which.geom]), stringsAsFactors = stringsAsFactors)
 
 	for (i in seq_along(geom))
 		x[[ nm[i] ]] = st_sfc(geom[[i]], crs = attr(geom[[i]], "crs")) # computes bbox

@@ -1,5 +1,5 @@
 
-R version 3.3.3 (2017-03-06) -- "Another Canoe"
+R version 3.4.0 (2017-04-21) -- "You Stupid Darkness"
 Copyright (C) 2017 The R Foundation for Statistical Computing
 Platform: x86_64-pc-linux-gnu (64-bit)
 
@@ -47,9 +47,10 @@ Dataset /home/edzer/git/sf.Rcheck/tests/testthat/x.gpkg already exists: remove f
 delete_layer=TRUE to delete layer, or delete_dsn=TRUE to remove the entire data source before writing.
 Creating layer . failed.
 Failed to create feature 1 in x
+Failed to create feature 1 in x
 testthat results ================================================================
-OK: 532 SKIPPED: 1 FAILED: 0
+OK: 537 SKIPPED: 0 FAILED: 0
 > 
 > proc.time()
    user  system elapsed 
-  4.436   0.320   8.009 
+  4.468   0.400   7.848 

@@ -621,6 +621,7 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+GEOS_CONFIG
 EGREP
 GREP
 CPP
@@ -682,6 +683,7 @@ with_proj_data
 with_proj_include
 with_proj_lib
 with_proj_share
+with_geos_config
 with_lwgeom
 '
       ac_precious_vars='build_alias
@@ -1320,6 +1322,8 @@ Optional Packages:
                           the location of proj libraries
   --with-proj-share=SHARE_PATH
                           the location of proj metadata files
+  --with-geos-config=GEOS_CONFIG
+                          the location of geos-config
   --without-lwgeom        disable support for lwgeom
 
 Some influential environment variables:
@@ -3868,27 +3872,112 @@ fi
 #
 # GEOS:
 #
+GEOS_CONFIG="geos-config"
+
+GEOS_CONFIG_SET="no"
+
+
+# Check whether --with-geos-config was given.
+if test "${with_geos_config+set}" = set; then :
+  withval=$with_geos_config; geos_config=$withval
+fi
+
+if test  -n "$geos_config"  ; then
+    GEOS_CONFIG_SET="yes"
+    GEOS_CONFIG="${geos_config}"
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: geos-config set to $GEOS_CONFIG" >&5
+$as_echo "$as_me: geos-config set to $GEOS_CONFIG" >&6;}
+fi
+
+if test "$GEOS_CONFIG_SET" = "no" ; then
+  # Extract the first word of ""$GEOS_CONFIG"", so it can be a program name with args.
+set dummy "$GEOS_CONFIG"; ac_word=$2
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+$as_echo_n "checking for $ac_word... " >&6; }
+if ${ac_cv_path_GEOS_CONFIG+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  case $GEOS_CONFIG in
+  [\\/]* | ?:[\\/]*)
+  ac_cv_path_GEOS_CONFIG="$GEOS_CONFIG" # Let the user override the test with a path.
+  ;;
+  *)
+  as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    for ac_exec_ext in '' $ac_executable_extensions; do
+  if as_fn_executable_p "$as_dir/$ac_word$ac_exec_ext"; then
+    ac_cv_path_GEOS_CONFIG="$as_dir/$ac_word$ac_exec_ext"
+    $as_echo "$as_me:${as_lineno-$LINENO}: found $as_dir/$ac_word$ac_exec_ext" >&5
+    break 2
+  fi
+done
+  done
+IFS=$as_save_IFS
+
+  test -z "$ac_cv_path_GEOS_CONFIG" && ac_cv_path_GEOS_CONFIG=""no""
+  ;;
+esac
+fi
+GEOS_CONFIG=$ac_cv_path_GEOS_CONFIG
+if test -n "$GEOS_CONFIG"; then
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: $GEOS_CONFIG" >&5
+$as_echo "$GEOS_CONFIG" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+
+
+  if test "$GEOS_CONFIG" = "no" ; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    as_fn_error $? "geos-config not found or not executable." "$LINENO" 5
+  fi
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking geos-config exists" >&5
+$as_echo_n "checking geos-config exists... " >&6; }
+  if test -r "${GEOS_CONFIG}"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    as_fn_error $? "geos-config not found - configure argument error." "$LINENO" 5
+  fi
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking geos-config executable" >&5
+$as_echo_n "checking geos-config executable... " >&6; }
+  if test -x "${GEOS_CONFIG}"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+  else
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    as_fn_error $? "geos-config not executable." "$LINENO" 5
+  fi
+fi
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking geos-config usability" >&5
 $as_echo_n "checking geos-config usability... " >&6; }
-GEOS_CONFIG=`which geos-config`
-if test `geos-config --version`
+if test `${GEOS_CONFIG} --version`
 then
-  GEOS_CLIBS=`geos-config --clibs`
+  GEOS_CLIBS=`${GEOS_CONFIG} --clibs`
   #GEOS_DEP_CLIBS=`geos-config --static-clibs` -- this gives -m instead of -lm, which breaks clang
   # fixed in 3.7.0 at https://github.com/libgeos/libgeos/pull/73#issuecomment-262208677
-  GEOS_DEP_CLIBS="-lgeos_c -lgeos -lm"
-  GEOS_CPPFLAGS=`geos-config --cflags`
+  GEOS_DEP_CLIBS=`${GEOS_CONFIG} --static-clibs | sed 's/-m/-lm/g'`
+  GEOS_CPPFLAGS=`${GEOS_CONFIG} --cflags`
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 else
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
-  echo "no geos support: geos-dev and/or geos++-dev not installed?"
-  exit 1
+  as_fn_error $? "${GEOS_CONFIG} not usable" "$LINENO" 5
 fi
 
-GEOS_VERSION=`geos-config --version`
+GEOS_VERSION=`${GEOS_CONFIG} --version`
 { $as_echo "$as_me:${as_lineno-$LINENO}: GEOS: ${GEOS_VERSION}" >&5
 $as_echo "$as_me: GEOS: ${GEOS_VERSION}" >&6;}
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking GEOS version >= 3.3.0" >&5
@@ -3942,18 +4031,14 @@ int main() {
 #endif
 _EOCONF
 
-
 PKG_CPPFLAGS="${INPKG_CPPFLAGS} ${GDAL_CPPFLAGS} ${GEOS_CPPFLAGS}"
 
-PKG_LIBS="${INPKG_LIBS} ${GDAL_LIBS} ${GEOS_CLIBS}"
+PKG_LIBS="${INPKG_LIBS} ${GDAL_LIBS}"
 
 if test "${NEED_DEPS}" = yes; then
-   PKG_LIBS="${PKG_LIBS} ${GDAL_DEP_LIBS} ${GEOS_DEP_CLIBS}"
+   PKG_LIBS="${PKG_LIBS} ${GDAL_DEP_LIBS}"
 
 fi
-PKG_LIBS="${PKG_LIBS} -lproj"
-
-
 
 # honor PKG_xx overrides
 # for CPPFLAGS we will superfluously double R's flags
@@ -3962,30 +4047,47 @@ CPPFLAGS="${CPPFLAGS} ${PKG_CPPFLAGS}"
 LIBS="${LIBS} ${PKG_LIBS}"
 
 #echo "${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${LIBS}"
-{ $as_echo "$as_me:${as_lineno-$LINENO}: checking geos: linking with -lgeos_c" >&5
-$as_echo_n "checking geos: linking with -lgeos_c... " >&6; }
-${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${LIBS} 2> errors.txt
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking geos: linking with ${GEOS_CLIBS}" >&5
+$as_echo_n "checking geos: linking with ${GEOS_CLIBS}... " >&6; }
+${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${GEOS_CLIBS} 2> errors.txt
 if test `echo $?` -ne 0 ; then
-geosok=no
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+ geosok=no
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
 else
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+ PKG_LIBS="${PKG_LIBS} ${GEOS_CLIBS}"
+
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }
 fi
 
 if test "${geosok}" = no; then
-   cat errors.txt
-   { $as_echo "$as_me:${as_lineno-$LINENO}: Install failure: compilation and/or linkage problems." >&5
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking geos: linking with ${GEOS_DEP_CLIBS}" >&5
+$as_echo_n "checking geos: linking with ${GEOS_DEP_CLIBS}... " >&6; }
+  ${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${GEOS_DEP_CLIBS} 2> errors.txt
+  if test `echo $?` -ne 0 ; then
+    geosok=no
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+    cat errors.txt
+    { $as_echo "$as_me:${as_lineno-$LINENO}: Install failure: compilation and/or linkage problems." >&5
 $as_echo "$as_me: Install failure: compilation and/or linkage problems." >&6;}
-   as_fn_error $? "initGEOS_r not found in libgeos_c." "$LINENO" 5
+    as_fn_error $? "initGEOS_r not found in libgeos_c." "$LINENO" 5
+  else
+    PKG_LIBS="${PKG_LIBS} ${GEOS_DEP_CLIBS}"
+
+    { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+  fi
 fi
 
 rm -f geos_test errors.txt geos_test.cpp
 
-if test "${geosok}" = no; then
-   as_fn_error $? "libgeos_c not found in given locations." "$LINENO" 5
-fi
+#
+# add -lproj
+#
+PKG_LIBS="${PKG_LIBS} -lproj"
+
 
 #
 # liblwgeom
@@ -4070,8 +4172,6 @@ fi
 fi
  fi
 fi
-
-
 
 #
 # concluding substitution

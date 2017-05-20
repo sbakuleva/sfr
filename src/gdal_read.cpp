@@ -75,7 +75,9 @@ int to_multi_what(std::vector<OGRGeometry *> gv) {
 		polygons = false, multipolygons = false;
 
 	for (unsigned int i = 0; i < gv.size(); i++) {
-		switch(gv[i]->getGeometryType()) {
+		// drop Z and M:
+		OGRwkbGeometryType gt = OGR_GT_SetModifier(gv[i]->getGeometryType(), 0, 0);
+		switch(gt) {
 			case wkbPoint: points = true; break;
 			case wkbMultiPoint: multipoints = true; break;
 			case wkbLineString: lines = true; break;
@@ -162,6 +164,20 @@ Rcpp::List CPL_get_layers(Rcpp::CharacterVector datasource, Rcpp::CharacterVecto
 	return out;
 }
 
+std::vector<OGRGeometry *> replace_null_with_empty(std::vector<OGRGeometry *> poGeom) {
+	OGRwkbGeometryType gt = wkbGeometryCollection;
+	for (size_t i = 0; i < poGeom.size(); i++) {
+		if (poGeom[i] != NULL) {
+			gt = poGeom[i]->getGeometryType(); // first non-NULL
+			break;
+		}
+	}
+	for (size_t i = 0; i < poGeom.size(); i++)
+		if (poGeom[i] == NULL)
+			poGeom[i] = OGRGeometryFactory::createGeometry(gt);
+	return poGeom;
+}
+
 // [[Rcpp::export]]
 Rcpp::List CPL_read_ogr(Rcpp::CharacterVector datasource, Rcpp::CharacterVector layer, 
 		Rcpp::CharacterVector options, bool quiet, Rcpp::NumericVector toTypeUser,
@@ -231,7 +247,7 @@ Rcpp::List CPL_read_ogr(Rcpp::CharacterVector datasource, Rcpp::CharacterVector 
 	poLayer->ResetReading();
 	unsigned int i = 0;
 	double dbl_max_int64 = pow(2.0, 53);
-	bool warn_int64 = false;
+	bool warn_int64 = false, has_null_geometries = false;
 	OGRFeature *poFeature;
 	while((poFeature = poLayer->GetNextFeature()) != NULL) {
 
@@ -332,7 +348,7 @@ Rcpp::List CPL_read_ogr(Rcpp::CharacterVector datasource, Rcpp::CharacterVector 
 		for (int iGeom = 0; iGeom < poFDefn->GetGeomFieldCount(); iGeom++ ) {
 			poGeometryV[i + n * iGeom] = poFeature->GetGeomFieldRef(iGeom);
 			if (poGeometryV[i + n * iGeom] == NULL)
-				throw std::invalid_argument("NULL pointer returned by GetGeomFieldRef"); // #nocov
+				has_null_geometries = true;
 		}
 
 		poFeatureV[i] = poFeature;
@@ -343,6 +359,9 @@ Rcpp::List CPL_read_ogr(Rcpp::CharacterVector datasource, Rcpp::CharacterVector 
 		std::vector<OGRGeometry *> poGeom(n);
 		for (size_t i = 0; i < n; i++)
 			poGeom[i] = poGeometryV[i + n * iGeom];
+		if (has_null_geometries)
+			poGeom = replace_null_with_empty(poGeom);
+
 		int toType = 0, toTypeU = 0;
 		if (toTypeUser.size() == poFDefn->GetGeomFieldCount())
 			toTypeU = toTypeUser[iGeom];

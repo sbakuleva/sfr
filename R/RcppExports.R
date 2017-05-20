@@ -85,8 +85,8 @@ CPL_write_ogr <- function(obj, dsn, layer, driver, dco, lco, geom, dim, quiet = 
     invisible(.Call('sf_CPL_write_ogr', PACKAGE = 'sf', obj, dsn, layer, driver, dco, lco, geom, dim, quiet, update, delete_dsn, delete_layer))
 }
 
-CPL_geos_binop <- function(sfc0, sfc1, op, par = 0.0, sparse = TRUE, prepared = FALSE) {
-    .Call('sf_CPL_geos_binop', PACKAGE = 'sf', sfc0, sfc1, op, par, sparse, prepared)
+CPL_geos_binop <- function(sfc0, sfc1, op, par = 0.0, pattern = "", sparse = TRUE, prepared = FALSE) {
+    .Call('sf_CPL_geos_binop', PACKAGE = 'sf', sfc0, sfc1, op, par, pattern, sparse, prepared)
 }
 
 CPL_geos_is_valid_reason <- function(sfc) {
@@ -141,6 +141,10 @@ CPL_make_valid <- function(sfc) {
     .Call('sf_CPL_make_valid', PACKAGE = 'sf', sfc)
 }
 
+CPL_geohash <- function(sfc, prec) {
+    .Call('sf_CPL_geohash', PACKAGE = 'sf', sfc, prec)
+}
+
 CPL_proj_version <- function(b = FALSE) {
     .Call('sf_CPL_proj_version', PACKAGE = 'sf', b)
 }
@@ -161,11 +165,15 @@ CPL_raw_to_hex <- function(raw) {
     .Call('sf_CPL_raw_to_hex', PACKAGE = 'sf', raw)
 }
 
-CPL_read_wkb <- function(wkb_list, EWKB = FALSE, endian = 0L) {
-    .Call('sf_CPL_read_wkb', PACKAGE = 'sf', wkb_list, EWKB, endian)
+CPL_read_wkb <- function(wkb_list, EWKB = FALSE, spatialite = FALSE, endian = 0L) {
+    .Call('sf_CPL_read_wkb', PACKAGE = 'sf', wkb_list, EWKB, spatialite, endian)
 }
 
 CPL_write_wkb <- function(sfc, EWKB = FALSE, endian = 0L, dim = "XY", precision = 0.0) {
     .Call('sf_CPL_write_wkb', PACKAGE = 'sf', sfc, EWKB, endian, dim, precision)
 }
 
+# Register entry points for exported C++ functions
+methods::setLoadAction(function(ns) {
+    .Call('sf_RcppExport_registerCCallable', PACKAGE = 'sf')
+})

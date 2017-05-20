@@ -2,7 +2,7 @@
 
 #' Dplyr verb methods for sf objects
 #' 
-#' Dplyr verb methods for sf objects
+#' Dplyr verb methods for sf objects. Geometries are sticky, use \link{as.data.frame} to let code{dplyr}'s own methods drop them.
 #' @param .data data object of class \link{sf}
 #' @param .dots see corresponding function in package \code{dplyr}
 #' @param ... other arguments
@@ -70,6 +70,13 @@ group_by.sf <- function(.data, ..., .dots, add = FALSE) {
 
 #' @name dplyr
 #' @export
+ungroup.sf <- function(x, ...) {
+	class(x) <- setdiff(class(x), "sf")
+	st_as_sf(NextMethod())
+}
+
+#' @name dplyr
+#' @export
 #' @examples
 #' nc2 <- nc %>% mutate(area10 = AREA/10)
 mutate_.sf <- function(.data, ..., .dots) {
@@ -116,12 +123,6 @@ select_.sf <- function(.data, ..., .dots = NULL) {
   structure(ret, agr = st_agr(ret))
 }
 
-#select.sf <- function(.data, ..., .dots = NULL) {
-#  .dots <- c(.dots, attr(.data, "sf_column")) 
-#  ret = NextMethod()
-#  structure(ret, agr = st_agr(ret))
-#}
-
 unclass_sf <- function(x) {
 	i <- match("sf", class(x))
 	class <- class(x)[-seq_len(i)]
@@ -130,21 +131,21 @@ unclass_sf <- function(x) {
 
 #' @name dplyr
 #' @export
-select.sf <- if (utils::packageVersion("dplyr") > "0.5.0") {
+#' @details \code{select} keeps the geometry regardless whether it is selected or not; to deselect it, first pipe through \code{as.data.frame} to let dplyr's own \code{select} drop it.
+select.sf <- if (requireNamespace("dplyr", quietly = TRUE) && utils::packageVersion("dplyr") > "0.5.0") {
   function(.data, ...) {
 	.data <- unclass_sf(.data)
 	sf_column <- attr(.data, "sf_column")
 
-	if (!requireNamespace("dplyr", quietly = TRUE))
-		stop("dplyr required: install first?")
 	if (!requireNamespace("rlang", quietly = TRUE))
 		stop("rlang required: install first?")
+
 	ret <- dplyr::select(.data, ..., !! rlang::sym(sf_column))
 	st_as_sf(ret)
   }
 } else {
   function(.data, ...) {
-	stop("requires dplyr > 0.5.0")
+	stop("requires dplyr > 0.5.0: install that first, then reinstall sf")
   }
 }
 
@@ -179,40 +180,46 @@ slice.sf <- function(.data, ...) {
 
 #' @name dplyr
 #' @export
+#' @aliases summarise
+#' @param do_union logical; should geometries be unioned by using \link{st_union}, or simply be combined using \link{st_combine}? Using \link{st_union} resolves internal boundaries, but in case of unioning points may also change the order of the points.
+summarise.sf <- function(.data, ..., .dots, do_union = TRUE) {
+	sf_column = attr(.data, "sf_column")
+	crs = st_crs(.data)
+	ret = NextMethod()
+
+	if (utils::packageVersion("dplyr") <= "0.5.0") {
+		stopifnot(requireNamespace("lazyeval", quietly = TRUE))
+		do_union = is.null(.dots$do_union) || isTRUE(lazyeval::lazy_eval(.dots$do_union))
+	}
+
+	geom = if (inherits(.data, "grouped_df") || inherits(.data, "grouped_dt")) {
+		geom = st_geometry(.data)
+		i = lapply(attr(.data, "indices"), function(x) x + 1) # they are 0-based!!
+		# merge geometry:
+		geom = if (do_union)
+			unlist(lapply(i, function(x) st_union(geom[x])), recursive = FALSE)
+		else
+			unlist(lapply(i, function(x) st_combine(geom[x])), recursive = FALSE)
+		do.call(st_sfc, geom)
+	} else { # single group:
+		if (do_union)
+			st_union(st_geometry(.data))
+		else
+			st_combine(st_geometry(.data))
+	}
+	ret[[ sf_column ]] = geom
+	ret$do_union = NULL
+	st_as_sf(ret, crs = crs)
+}
+#' @name dplyr
+#' @export
 #' @examples
 #' nc$area_cl = cut(nc$AREA, c(0, .1, .12, .15, .25))
 #' nc.g <- nc %>% group_by(area_cl)
 #' nc.g %>% summarise(mean(AREA))
-#' nc.g %>% summarize(mean(AREA))
-#' nc.g %>% summarize(mean(AREA)) %>% plot(col = grey(3:6 / 7))
-summarise_.sf <- function(.data, ..., .dots) {
-	if (inherits(.data, "grouped_df") || inherits(.data, "grouped_dt")) {
-		geom = st_geometry(.data)
-		i = lapply(attr(.data, "indices"), function(x) x + 1) # they are 0-based!!
-		sf_column = attr(.data, "sf_column")
-		ret = NextMethod()
-		# merge geometry:
-		geoms = unlist(lapply(i, function(x) st_union(geom[x])), recursive = FALSE)
-		ret[[sf_column]] = do.call(st_sfc, geoms)
-		st_as_sf(ret, crs = st_crs(.data))
-	} else
-		as.data.frame(NextMethod())
-}
-#' @name dplyr
-#' @export
-summarise.sf <- function(.data, ..., .dots) {
-	if (inherits(.data, "grouped_df") || inherits(.data, "grouped_dt")) {
-		geom = st_geometry(.data)
-		i = lapply(attr(.data, "indices"), function(x) x + 1) # they are 0-based!!
-		sf_column = attr(.data, "sf_column")
-		ret = NextMethod()
-		# merge geometry:
-		geoms = unlist(lapply(i, function(x) st_union(geom[x])), recursive = FALSE)
-		ret[[sf_column]] = do.call(st_sfc, geoms)
-		st_as_sf(ret, crs = st_crs(.data))
-	} else
-		as.data.frame(NextMethod())
-}
+#' nc.g %>% summarise(mean(AREA)) %>% plot(col = grey(3:6 / 7))
+#' nc %>% as.data.frame %>% summarise(mean(AREA))
+summarise_.sf = summarise.sf
 
 ## summarize_ not needed
 
@@ -267,6 +274,16 @@ sample_n.sf <- function(tbl, size, replace = FALSE, weight = NULL, .env = parent
 #' @export
 sample_frac.sf <- function(tbl, size = 1, replace = FALSE, weight = NULL, .env = parent.frame()) {
 	st_sf(NextMethod())
+}
+
+#' @name dplyr
+#' @param nest_cols see \link[tidyr]{nest}
+#' @export
+nest_.sf <- function(data, key_col, nest_cols) {
+	class(data) <- setdiff(class(data), "sf")
+	ret = NextMethod()
+	ret$data = lapply(ret$data, st_as_sf)
+	ret
 }
 
 ## tibble methods:

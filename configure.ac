@@ -461,24 +461,58 @@ fi
 #
 # GEOS:
 #
+GEOS_CONFIG="geos-config"
+
+GEOS_CONFIG_SET="no"
+
+AC_ARG_WITH([geos-config],
+    AC_HELP_STRING([--with-geos-config=GEOS_CONFIG],
+           [the location of geos-config]),
+           [geos_config=$withval])
+if test [ -n "$geos_config" ] ; then
+    GEOS_CONFIG_SET="yes"
+    AC_SUBST([GEOS_CONFIG],["${geos_config}"])
+    AC_MSG_NOTICE(geos-config set to $GEOS_CONFIG)
+fi
+
+if test ["$GEOS_CONFIG_SET" = "no"] ; then
+  AC_PATH_PROG([GEOS_CONFIG], ["$GEOS_CONFIG"],["no"])
+  if test ["$GEOS_CONFIG" = "no"] ; then
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([geos-config not found or not executable.])
+  fi
+else
+  AC_MSG_CHECKING(geos-config exists)
+  if test -r "${GEOS_CONFIG}"; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([geos-config not found - configure argument error.])
+  fi
+  AC_MSG_CHECKING(geos-config executable)
+  if test -x "${GEOS_CONFIG}"; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    AC_MSG_ERROR([geos-config not executable.])
+  fi
+fi
 
 AC_MSG_CHECKING(geos-config usability)
-GEOS_CONFIG=`which geos-config`
-if test `geos-config --version`
+if test `${GEOS_CONFIG} --version`
 then
-  GEOS_CLIBS=`geos-config --clibs`
+  GEOS_CLIBS=`${GEOS_CONFIG} --clibs`
   #GEOS_DEP_CLIBS=`geos-config --static-clibs` -- this gives -m instead of -lm, which breaks clang
   # fixed in 3.7.0 at https://github.com/libgeos/libgeos/pull/73#issuecomment-262208677
-  GEOS_DEP_CLIBS="-lgeos_c -lgeos -lm"
-  GEOS_CPPFLAGS=`geos-config --cflags`
+  GEOS_DEP_CLIBS=`${GEOS_CONFIG} --static-clibs | sed 's/-m/-lm/g'`
+  GEOS_CPPFLAGS=`${GEOS_CONFIG} --cflags`
   AC_MSG_RESULT(yes)
 else
   AC_MSG_RESULT(no)
-  echo "no geos support: geos-dev and/or geos++-dev not installed?"
-  exit 1
+  AC_MSG_ERROR([${GEOS_CONFIG} not usable])
 fi
 
-GEOS_VERSION=`geos-config --version`
+GEOS_VERSION=`${GEOS_CONFIG} --version`
 AC_MSG_NOTICE([GEOS: ${GEOS_VERSION}])
 AC_MSG_CHECKING([GEOS version >= 3.3.0]) # GDAL 2.0.1 requires GEOS 3.1.0
 GEOS_VER_DOT=`echo $GEOS_VERSION | tr -d "."`
@@ -515,14 +549,11 @@ int main() {
 #endif
 _EOCONF]
 
-
 AC_SUBST([PKG_CPPFLAGS], ["${INPKG_CPPFLAGS} ${GDAL_CPPFLAGS} ${GEOS_CPPFLAGS}"])
-AC_SUBST([PKG_LIBS], ["${INPKG_LIBS} ${GDAL_LIBS} ${GEOS_CLIBS}"])
+AC_SUBST([PKG_LIBS], ["${INPKG_LIBS} ${GDAL_LIBS}"])
 if test "${NEED_DEPS}" = yes; then
-   AC_SUBST([PKG_LIBS], ["${PKG_LIBS} ${GDAL_DEP_LIBS} ${GEOS_DEP_CLIBS}"])
+   AC_SUBST([PKG_LIBS], ["${PKG_LIBS} ${GDAL_DEP_LIBS}"])
 fi
-AC_SUBST([PKG_LIBS], ["${PKG_LIBS} -lproj"])
-
 
 # honor PKG_xx overrides
 # for CPPFLAGS we will superfluously double R's flags
@@ -531,26 +562,37 @@ CPPFLAGS="${CPPFLAGS} ${PKG_CPPFLAGS}"
 LIBS="${LIBS} ${PKG_LIBS}"
 
 #echo "${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${LIBS}"
-AC_MSG_CHECKING(geos: linking with -lgeos_c)
-${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${LIBS} 2> errors.txt
+AC_MSG_CHECKING(geos: linking with ${GEOS_CLIBS})
+${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${GEOS_CLIBS} 2> errors.txt
 if test `echo $?` -ne 0 ; then
-geosok=no
-AC_MSG_RESULT(no)
+ geosok=no
+ AC_MSG_RESULT(no)
 else
-AC_MSG_RESULT(yes)
+ AC_SUBST([PKG_LIBS], ["${PKG_LIBS} ${GEOS_CLIBS}"])
+ AC_MSG_RESULT(yes)
 fi
 
 if test "${geosok}" = no; then
-   cat errors.txt
-   AC_MSG_NOTICE([Install failure: compilation and/or linkage problems.])
-   AC_MSG_ERROR([initGEOS_r not found in libgeos_c.])
+  AC_MSG_CHECKING(geos: linking with ${GEOS_DEP_CLIBS})
+  ${CXX} ${CPPFLAGS} -o geos_test geos_test.cpp ${GEOS_DEP_CLIBS} 2> errors.txt
+  if test `echo $?` -ne 0 ; then
+    geosok=no
+    AC_MSG_RESULT(no)
+    cat errors.txt
+    AC_MSG_NOTICE([Install failure: compilation and/or linkage problems.])
+    AC_MSG_ERROR([initGEOS_r not found in libgeos_c.])
+  else
+    AC_SUBST([PKG_LIBS], ["${PKG_LIBS} ${GEOS_DEP_CLIBS}"])
+    AC_MSG_RESULT(yes)
+  fi
 fi
 
 rm -f geos_test errors.txt geos_test.cpp
 
-if test "${geosok}" = no; then
-   AC_MSG_ERROR([libgeos_c not found in given locations.])
-fi
+#
+# add -lproj
+#
+AC_SUBST([PKG_LIBS], ["${PKG_LIBS} -lproj"])
 
 #
 # liblwgeom
@@ -577,8 +619,6 @@ if test "x$with_lwgeom" != xno; then
      [])])
  fi
 fi
-
-
 
 #
 # concluding substitution

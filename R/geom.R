@@ -33,13 +33,13 @@ st_area = function(x) {
 			stop("package geosphere required, please install it first")
 		a = geosphere::areaPolygon(as(st_geometry(x), "Spatial"), 
 				as.numeric(p$SemiMajor), 1./p$InvFlattening)
-		set_units(a, units(p$SemiMajor^2))
+		units(a) = units(p$SemiMajor^2)
+		a
 	} else {
-		a = CPL_area(st_geometry(x))
+		a = CPL_area(st_geometry(x)) # ignores units: units of coordinates
 		if (!is.na(st_crs(x)))
-			set_units(a, units(crs_parameters(st_crs(x))$SemiMajor^2))
-		else
-			a
+			units(a) = crs_parameters(st_crs(x))$ud_unit^2 # coord units
+		a
 	}
 }
 
@@ -75,14 +75,14 @@ st_length = function(x, dist_fun = geosphere::distGeo) {
 			stop("package geosphere required, please install it first")
 		p = crs_parameters(st_crs(x))
 		ret = vapply(x, ll_length, 0.0, fn = dist_fun, p = p)
-		set_units(ret, units(p$SemiMajor))
+		units(ret) = units(p$SemiMajor)
+		ret
 	} else {
-		ret = CPL_length(x)
+		ret = CPL_length(x) # units of coordinates
 		ret[is.nan(ret)] = NA
 		if (!is.na(st_crs(x)))
-			set_units(ret, crs_parameters(st_crs(x))$ud_unit)
-		else
-			ret
+			units(ret) = crs_parameters(st_crs(x))$ud_unit
+		ret
 	}
 }
 
@@ -95,14 +95,15 @@ st_is_simple = function(x) CPL_geos_is_simple(st_geometry(x))
 
 # returning matrix, distance or relation string -- the work horse is:
 
-st_geos_binop = function(op = "intersects", x, y, par = 0.0, sparse = TRUE, prepared = FALSE) {
+st_geos_binop = function(op = "intersects", x, y, par = 0.0, pattern = NA_character_, 
+		sparse = TRUE, prepared = FALSE) {
 	if (missing(y))
 		y = x
 	else if (!inherits(x, "sfg") && !inherits(y, "sfg"))
 		stopifnot(st_crs(x) == st_crs(y))
 	if (isTRUE(st_is_longlat(x)) && !(op %in% c("equals", "equals_exact", "polygonize"))) 
 		message("although coordinates are longitude/latitude, it is assumed that they are planar")
-	ret = CPL_geos_binop(st_geometry(x), st_geometry(y), op, par, sparse, prepared)
+	ret = CPL_geos_binop(st_geometry(x), st_geometry(y), op, par, pattern, sparse, prepared)
 	if (sparse)
 		ret
 	else
@@ -136,18 +137,19 @@ st_distance = function(x, y, dist_fun) {
 		m = matrix(
 			dist_fun(xp, yp, as.numeric(p$SemiMajor), 1./p$InvFlattening), 
 			length(x), length(y))
-		set_units(m, units(p$SemiMajor))
+		units(m) = units(p$SemiMajor)
+		m
 	} else {
 		d = CPL_geos_dist(x, y)
 		if (! is.na(st_crs(x)))
-			set_units(d, p$ud_unit)
-		else
-			d
+			units(d) = p$ud_unit
+		d
 	}
 }
 
 #' @name geos
-#' @return st_relate returns a dense \code{character} matrix; element [i,j] has nine characters, refering to the DE9-IM relationship between x[i] and y[j], encoded as IxIy,IxBy,IxEy,BxIy,BxBy,BxEy,ExIy,ExBy,ExEy where I refers to interior, B to boundary, and E to exterior, and e.g. BxIy the dimensionality of the intersection of the the boundary of x[i] and the interior of y[j], which is one of {0,1,2,F}, digits denoting dimensionality, F denoting not intersecting.
+#' @param pattern character; define the pattern to match to, see details.
+#' @return in case \code{pattern} is not given, st_relate returns a dense \code{character} matrix; element [i,j] has nine characters, refering to the DE9-IM relationship between x[i] and y[j], encoded as IxIy,IxBy,IxEy,BxIy,BxBy,BxEy,ExIy,ExBy,ExEy where I refers to interior, B to boundary, and E to exterior, and e.g. BxIy the dimensionality of the intersection of the the boundary of x[i] and the interior of y[j], which is one of {0,1,2,F}, digits denoting dimensionality, F denoting not intersecting. When \code{pattern} is given, returns a dense logical or sparse index list with matches to the given pattern; see also \url{https://en.wikipedia.org/wiki/DE-9IM}.
 #' @export
 #' @examples
 #' p1 = st_point(c(0,0))
@@ -156,7 +158,22 @@ st_distance = function(x, y, dist_fun) {
 #' pol2 = pol1 + 1
 #' pol3 = pol1 + 2
 #' st_relate(st_sfc(p1, p2), st_sfc(pol1, pol2, pol3))
-st_relate	= function(x, y) st_geos_binop("relate", x, y, sparse = FALSE)
+#' sfc = st_sfc(st_point(c(0,0)), st_point(c(3,3)))
+#' grd = st_make_grid(sfc, n = c(3,3))
+#' st_intersects(grd)
+#' st_relate(grd, pattern = "****1****") # sides, not corners, internals
+#' st_relate(grd, pattern = "****0****") # only corners touch
+#' st_rook = function(a, b = a) st_relate(a, b, pattern = "F***1****")
+#' st_rook(grd)
+#' # queen neighbours, see https://github.com/edzer/sfr/issues/234#issuecomment-300511129
+#' st_queen <- function(a, b = a) st_relate(a, b, pattern = "F***T****")
+st_relate	= function(x, y, pattern = NA_character_, sparse = !is.na(pattern)) {
+	if (!is.na(pattern)) {
+		stopifnot(is.character(pattern) && length(pattern) == 1 && nchar(pattern) == 9)
+		st_geos_binop("relate_pattern", x, y, pattern = pattern, sparse = sparse)
+	} else
+		st_geos_binop("relate", x, y, sparse = FALSE)
+}
 
 #' @name geos
 #' @param sparse logical; should a sparse matrix be returned (TRUE) or a dense matrix?
@@ -534,7 +551,8 @@ geos_op2_df = function(x, y, geoms) {
 	if (! (all_constant_x && all_constant_y))
 		warning("attribute variables are assumed to be spatially constant throughout all geometries", 
 			call. = FALSE)
-	st_sf(df, geoms)
+	df[[ attr(x, "sf_column") ]] = geoms
+	st_sf(df, sf_column_name = attr(x, "sf_column"))
 }
 
 # after checking identical crs,
@@ -572,6 +590,9 @@ st_intersection.sf = function(x, y)
 
 #' @name geos
 #' @export
+#' @examples
+#' # a helper function that erases all of y from x:
+#' st_erase = function(x, y) st_difference(x, st_union(st_combine(y)))
 st_difference = function(x, y) UseMethod("st_difference")
 
 #' @export
@@ -663,45 +684,53 @@ st_line_sample = function(x, n, density, type = "regular", sample = NULL) {
 	if (isTRUE(st_is_longlat(x)))
 		stop("st_line_sample for longitude/latitude not supported; use st_segmentize?")
 	l = st_length(x)
-	if (is.null(sample)) {
-		if (missing(n)) {
+	distList = if (is.null(sample)) {
+		n = if (missing(n)) {
 			if (!is.na(st_crs(x)) && inherits(density, "units"))
-				units(density) = units(1 / crs_parameters(st_crs(x))$SemiMajor)
-			n = round(rep(density, length.out = length(l)) * l)
+				units(density) = 1/crs_parameters(st_crs(x))$ud_unit # coordinate units
+			round(rep(density, length.out = length(l)) * l)
 		} else
-			n = rep(n, length.out = length(l))
+			rep(n, length.out = length(l))
 		regular = function(n) { (1:n - 0.5)/n }
 		random = function(n) { sort(runif(n)) }
 		fn = switch(type,
 					regular = regular,
 					random = random,
 					stop("unknown type"))
-		distList = lapply(seq_along(n), function(i) fn(n[i]) * l[i])
+		lapply(seq_along(n), function(i) fn(n[i]) * l[i])
 	} else
-		distList = lapply(seq_along(l), function(i) sample * l[i])
+		lapply(seq_along(l), function(i) sample * l[i])
 	
 	x = st_geometry(x)
 	stopifnot(inherits(x, "sfc_LINESTRING"))
 	st_sfc(CPL_gdal_linestring_sample(x, distList), crs = st_crs(x))
 }
 
-#' Make a rectangular grid of polygons over the bounding box of a sf or sfc object
+#' Make a rectangular grid over the bounding box of a sf or sfc object
 #' 
-#' Make a rectangular grid of polygons over the bounding box of a sf or sfc object
+#' Make a rectangular grid over the bounding box of a sf or sfc object
 #' @param x object of class \link{sf} or \link{sfc}
 #' @param cellsize target cellsize
 #' @param offset numeric of lengt 2; lower left corner coordinates (x, y) of the grid
 #' @param n integer of length 1 or 2, number of grid cells in x and y direction (columns, rows)
 #' @param crs object of class \code{crs}
+#' @param what character; one of: \code{"polygons"}, \code{"corners"}, or \code{"centers"}
+#' @return object of class \code{sfc} (simple feature geometry list column) with, depending on \code{what},
+#' rectangular polygons, corner points of these polygons, or center points of these polygons.
+#' @examples
+#' plot(st_make_grid(what = "centers"), axes = TRUE)
+#' plot(st_make_grid(what = "corners"), add = TRUE, col = 'green', pch=3)
 #' @export
 st_make_grid = function(x, 
 		cellsize = c(diff(st_bbox(x)[c(1,3)]), diff(st_bbox(x)[c(2,4)]))/n, 
 		offset = st_bbox(x)[1:2], n = c(10, 10),
-		crs = if(missing(x)) NA_crs_ else st_crs(x)) {
+		crs = if (missing(x)) NA_crs_ else st_crs(x),
+		what = "polygons") {
 
-	if (nargs() == 0) # create global 10 x 10 degree grid
+	if (missing(x) && missing(cellsize) && missing(offset) 
+			&& missing(n) && missing(crs)) # create global 10 x 10 degree grid
 		return(st_make_grid(cellsize = c(10,10), offset = c(-180,-90), n = c(36,18),
-			crs = st_crs(4326)))
+			crs = st_crs(4326), what = what))
 
 	bb = if (!missing(n) && !missing(offset) && !missing(cellsize)) {
 		cellsize = rep(cellsize, length.out = 2)
@@ -727,16 +756,29 @@ st_make_grid = function(x,
 	xc = seq(offset[1], bb[3], length.out = nx + 1)
 	yc = seq(offset[2], bb[4], length.out = ny + 1)
 	
-	ret = vector("list", nx * ny)
-	square = function(x1, y1, x2, y2)	{
-		st_polygon(list(rbind(c(x1, y1), c(x2, y1), c(x2, y2), c(x1, y2), c(x1, y1))))
-	}
+	if (what == "polygons") {
+		ret = vector("list", nx * ny)
+		square = function(x1, y1, x2, y2)
+			st_polygon(list(matrix(c(x1, x2, x2, x1, x1, y1, y1, y2, y2, y1), 5)))
+		for (i in 1:nx)
+			for (j in 1:ny)
+				ret[[(j - 1) * nx + i]] = square(xc[i], yc[j], xc[i+1], yc[j+1])
+	} else if (what == "centers") {
+		ret = vector("list", nx * ny)
+		cent = function(x1, y1, x2, y2)
+			st_point(c( (x1+x2)/2, (y1+y2)/2 ))
+		for (i in 1:nx)
+			for (j in 1:ny)
+				ret[[(j - 1) * nx + i]] = cent(xc[i], yc[j], xc[i+1], yc[j+1])
+	} else if (what == "corners") {
+		ret = vector("list", (nx + 1) * (ny + 1))
+		for (i in 1:(nx + 1))
+			for (j in 1:(ny + 1))
+				ret[[(j - 1) * (nx + 1) + i]] = st_point(c(xc[i], yc[j]))
+	} else
+		stop("unknown value of `what'")
 	
-	for (i in 1:nx)
-		for (j in 1:ny)
-			ret[[(j - 1) * nx + i]] = square(xc[i], yc[j], xc[i+1], yc[j+1])
-	
-	if (missing(x))
+	if (missing(x)) 
 		st_sfc(ret, crs = crs)
 	else
 		st_sfc(ret, crs = st_crs(x))
@@ -756,7 +798,7 @@ ll_segmentize = function(x, dfMaxLength, crs = st_crs(4326)) {
 		p2 = tail(pts, -1)
 		ll = geosphere::distGeo(p1, p2, as.numeric(p$SemiMajor), 1./p$InvFlattening)
 		if (inherits(dfMaxLength, "units"))
-			ll = set_units(ll, units(p$SemiMajor))
+			units(ll) = units(p$SemiMajor)
 		n = as.numeric(ceiling(ll / dfMaxLength)) - 1
 		ret = geosphere::gcIntermediate(p1, p2, n, addStartEnd = TRUE)
 		if (length(n) == 1) # would be a matrix otherwise

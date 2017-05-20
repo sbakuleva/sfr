@@ -12,8 +12,8 @@ st_is_valid(nc)
 ops = c("intersects", "disjoint", "touches", "crosses", "within", "contains", "overlaps", "equals", 
 "covers", "covered_by", "equals_exact")
 for (op in ops) {
-	x = sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, FALSE)
-	x = sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, TRUE)
+	x = sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, NA_character_, FALSE)
+	x = sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, NA_character_, TRUE)
 }
 
 ops = c("intersects", "disjoint", "touches", "crosses", "within", "contains", "overlaps",
@@ -22,8 +22,8 @@ df = data.frame(ops = ops)
 df$equal = NA
 for (op in ops)
 	df[df$ops == op, "equal"] = identical(
-		sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, TRUE, FALSE),
-		sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, TRUE,  TRUE)
+		sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, NA_character_, TRUE, FALSE),
+		sf:::st_geos_binop(op, ncm[1:50,], ncm[51:100,], 0, NA_character_, TRUE,  TRUE)
 	)
 df	
 
@@ -54,6 +54,10 @@ sum(a2$BIR74) / sum(nc$BIR74)
 
 # missing x:
 g = st_make_grid(offset = c(0,0), cellsize = c(1,1), n = c(10,10))
+g = st_make_grid(what = "centers")
+length(g)
+g = st_make_grid(what = "corners")
+length(g)
 
 mls = st_multilinestring(list(rbind(c(0,0), c(1,1)), rbind(c(2,0), c(1,1))))
 st_line_merge(mls)
@@ -81,3 +85,12 @@ if (sf_extSoftVersion()["GEOS"] >= "3.5.0") {
 i = st_intersects(ncm, ncm)
 j = sf:::CPL_invert_sparse_incidence(i, 100)
 all.equal(i, sf:::CPL_invert_sparse_incidence(j, 100))
+
+# check use of pattern in st_relate:
+sfc = st_sfc(st_point(c(0,0)), st_point(c(3,3)))
+grd = st_make_grid(sfc, n = c(3,3))
+st_intersects(grd)
+st_relate(grd, pattern = "****1****")
+st_relate(grd, pattern = "****0****")
+st_rook = function(a, b = a) st_relate(a, b, pattern = "F***1****")
+st_rook(grd)
